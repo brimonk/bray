@@ -67,6 +67,9 @@ vec3f R_RayCast(struct world_t *world, vec3f ray_origin, vec3f ray_direction);
 /* R_WorldGen : generates or loads the world up */
 struct world_t *R_WorldGen();
 
+/* R_WorldFree : frees the world structure */
+void R_WorldFree(struct world_t *world);
+
 int main(int argc, char **argv)
 {
 	vec3f *framebuffer;
@@ -114,7 +117,6 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 
 	s32 i, j;
 
-	vec3f camera_pos, camera_dir;
 	vec3f camera_p, camera_x, camera_y, camera_z;
 
 	vec3f film_p, film_c;
@@ -129,8 +131,8 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 	// construct the world first
 	world = R_WorldGen();
 
-	camera_p = M_Vec3f(0, 0, -10);
-	camera_z = M_NormVec3f(camera_pos);
+	camera_p = M_Vec3f(0, 0, 10);
+	camera_z = M_NormVec3f(camera_p);
 	camera_x = M_NormVec3f(M_CrossVec3f(camera_z, M_Vec3f(0, 0, 1)));
 	camera_y = M_NormVec3f(M_CrossVec3f(camera_z, camera_x));
 
@@ -161,6 +163,8 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 		}
 	}
 
+	R_WorldFree(world);
+
 	return 0;
 }
 
@@ -188,8 +192,8 @@ vec3f R_RayCast(struct world_t *world, vec3f ray_origin, vec3f ray_direction)
 		if ((denom < -tolerance) || (tolerance < denom)) {
 			thisdist = (-plane.d - M_DotVec3f(plane.n, ray_origin)) / denom;
 
+			printf("hit %f\n", thisdist);
 			if ((0.0f < thisdist) && (thisdist < hitdist)) {
-				printf("hit %f\n", thisdist);
 				hitdist = thisdist;
 				res = M_CopyVec3f(world->materials[plane.mat].color);
 			}
@@ -228,5 +232,22 @@ struct world_t *R_WorldGen()
 	world->planes[0].mat = 1;
 
 	return world;
+}
+
+/* R_WorldFree : frees the world structure */
+void R_WorldFree(struct world_t *world)
+{
+	if (world) {
+		if (world->planes) {
+			free(world->planes);
+		}
+		if (world->spheres) {
+			free(world->spheres);
+		}
+		if (world->materials) {
+			free(world->materials);
+		}
+		free(world);
+	}
 }
 
