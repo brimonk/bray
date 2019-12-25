@@ -7,7 +7,7 @@ CC = gcc
 LINKER = -lm
 FLAGS = -g3 -Wall -march=native
 TARGET = bray.exe
-SRC = src/bray.c
+SRC = src/bray.c src/math.c
 OBJ = $(SRC:.c=.o)
 DEP = $(OBJ:.o=.d) # one dependency file for each source
 
