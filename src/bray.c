@@ -131,9 +131,9 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 	// construct the world first
 	world = R_WorldGen();
 
-	camera_p = M_Vec3f(0, 0, 10);
+	camera_p = M_Vec3f(0, -10, 1);
 	camera_z = M_NormVec3f(camera_p);
-	camera_x = M_NormVec3f(M_CrossVec3f(camera_z, M_Vec3f(0, 0, 1)));
+	camera_x = M_NormVec3f(M_CrossVec3f(M_Vec3f(0, 0, 1), camera_z));
 	camera_y = M_NormVec3f(M_CrossVec3f(camera_z, camera_x));
 
 	film_d = 1.0f;
@@ -155,7 +155,8 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 			film_p = M_AddVec3f(film_p, M_ScaleVec3f(camera_y, film_y * halffilm_h));
 
 			ray_origin = M_CopyVec3f(camera_p);
-			ray_dir = M_NormVec3f(M_SubVec3f(film_p, camera_p));
+			ray_dir = M_SubVec3f(film_p, camera_p);
+			ray_dir = M_NormVec3f(ray_dir);
 
 			color = R_RayCast(world, ray_origin, ray_dir);
 
@@ -192,7 +193,6 @@ vec3f R_RayCast(struct world_t *world, vec3f ray_origin, vec3f ray_direction)
 		if ((denom < -tolerance) || (tolerance < denom)) {
 			thisdist = (-plane.d - M_DotVec3f(plane.n, ray_origin)) / denom;
 
-			printf("hit %f\n", thisdist);
 			if ((0.0f < thisdist) && (thisdist < hitdist)) {
 				hitdist = thisdist;
 				res = M_CopyVec3f(world->materials[plane.mat].color);

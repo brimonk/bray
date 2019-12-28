@@ -39,15 +39,16 @@ vec3f M_CrossVec3f(vec3f a, vec3f b)
 /* M_NormVec3f : normalize a vec3f */
 vec3f M_NormVec3f(vec3f n)
 {
+	vec3f r;
 	f32 mag;
 
 	mag = sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
 
-	n.x /= mag;
-	n.y /= mag;
-	n.z /= mag;
+	r.x = n.x / mag;
+	r.y = n.y / mag;
+	r.z = n.z / mag;
 
-	return n;
+	return r;
 }
 
 /* M_Vec2ub : small constructor for vec2ub */
@@ -134,7 +135,13 @@ f32 M_Absf(f32 in)
 /* M_CopyVec3f : helper function to copy vec3f's */
 vec3f M_CopyVec3f(vec3f a)
 {
-	return a;
+	vec3f r;
+
+	r.x = a.x;
+	r.y = a.y;
+	r.z = a.z;
+
+	return r;
 }
 
 /* M_CopyVec3i : helper function to copy vec3f's */
@@ -170,11 +177,13 @@ vec3f M_SubVec3f(vec3f a, vec3f b)
 /* M_ScaleVec3f : multiply a vector by a scalar */
 vec3f M_ScaleVec3f(vec3f a, f32 b)
 {
-	a.x *= b;
-	a.y *= b;
-	a.z *= b;
+	vec3f r;
 
-	return a;
+	r.x = a.x * b;
+	r.y = a.y * b;
+	r.z = a.z * b;
+
+	return r;
 }
 
 /* M_AddVec3f : subtract b from a */
