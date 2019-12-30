@@ -210,3 +210,9 @@ vec3f M_DivVec3f(vec3f a, vec3f b)
 	return r;
 }
 
+/* M_Sqrt : returns the square root of the input value */
+f32 M_Sqrt(f32 in)
+{
+	return sqrtf(in);
+}
+

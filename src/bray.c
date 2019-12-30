@@ -22,6 +22,8 @@
 #include "common.h"
 #include "math.h"
 
+#define FLOAT_TOLERANCE (0.0001f)
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -32,6 +34,11 @@
 
 struct material_t {
 	vec3f color;
+};
+
+struct ray_t {
+	vec3f origin;
+	vec3f dir;
 };
 
 struct sphere_t {
@@ -62,7 +69,13 @@ struct world_t {
 int R_Main(vec3f *framebuffer, s32 w, s32 h);
 
 /* R_RayCast : cast a ray into the world, returning the color vector */
-vec3f R_RayCast(struct world_t *world, vec3f ray_origin, vec3f ray_direction);
+vec3f R_RayCast(struct world_t *world, struct ray_t *ray);
+
+/* R_RayCrossPlane : checks if a ray crosses the given */
+int R_RayCrossPlane(struct plane_t *plane, vec3f origin, vec3f dir, f32 *t);
+
+/* R_RayCrossSphere : checks if a ray crosses the given sphere */
+int R_RayCrossSphere(struct sphere_t *sphere, vec3f origin, vec3f dir, f32 *t);
 
 /* R_WorldGen : generates or loads the world up */
 struct world_t *R_WorldGen();
@@ -114,6 +127,7 @@ int main(int argc, char **argv)
 int R_Main(vec3f *framebuffer, s32 w, s32 h)
 {
 	struct world_t *world;
+	struct ray_t ray;
 
 	s32 i, j;
 
@@ -124,8 +138,6 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 	f32 film_w, film_h;
 	f32 halffilm_w, halffilm_h;
 
-	vec3f ray_origin;
-	vec3f ray_dir;
 	vec3f color;
 
 	// construct the world first
@@ -134,11 +146,19 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 	camera_p = M_Vec3f(0, -10, 1);
 	camera_z = M_NormVec3f(camera_p);
 	camera_x = M_NormVec3f(M_CrossVec3f(M_Vec3f(0, 0, 1), camera_z));
-	camera_y = M_NormVec3f(M_CrossVec3f(camera_z, camera_x));
+	camera_y = M_NormVec3f(M_CrossVec3f(camera_x, camera_z));
 
 	film_d = 1.0f;
 	film_w = 1.0f;
 	film_h = 1.0f;
+
+	// alter film_w and film_h
+	if (w > h) {
+		film_h = film_w * ((f32)h / (f32)w);
+	} else if (h > w) {
+		film_w = film_h * ((f32)w / (f32)h);
+	}
+
 	halffilm_w = film_w / 2.0;
 	halffilm_h = film_h / 2.0;
 	film_c = M_SubVec3f(camera_p, M_ScaleVec3f(camera_z, film_d));
@@ -154,11 +174,11 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 			film_p = M_AddVec3f(film_p, M_ScaleVec3f(camera_x, film_x * halffilm_w));
 			film_p = M_AddVec3f(film_p, M_ScaleVec3f(camera_y, film_y * halffilm_h));
 
-			ray_origin = M_CopyVec3f(camera_p);
-			ray_dir = M_SubVec3f(film_p, camera_p);
-			ray_dir = M_NormVec3f(ray_dir);
+			ray.origin = M_CopyVec3f(camera_p);
+			ray.dir = M_SubVec3f(film_p, camera_p);
+			ray.dir = M_NormVec3f(ray.dir);
 
-			color = R_RayCast(world, ray_origin, ray_dir);
+			color = R_RayCast(world, &ray);
 
 			framebuffer[i + j * w] = M_CopyVec3f(color);
 		}
@@ -170,37 +190,102 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 }
 
 /* R_RayCast : cast a ray into the world, returning the color vector */
-vec3f R_RayCast(struct world_t *world, vec3f ray_origin, vec3f ray_direction)
+vec3f R_RayCast(struct world_t *world, struct ray_t *ray)
 {
+	struct plane_t *plane;
+	struct sphere_t *sphere;
+	f32 t;
 	vec3f res;
-	struct plane_t plane;
-	f32 hitdist, thisdist;
-	f32 tolerance;
-	f32 denom;
 	s32 i;
+	int rc;
 
-	tolerance = 0.0001f;
-
-	hitdist = FLT_MAX;
+	t = FLT_MAX;
 
 	res = M_CopyVec3f(world->materials[0].color);
 
 	// check for intersections with planes
 	for (i = 0; i < world->planes_len; i++) {
-		memcpy(&plane, world->planes + i, sizeof(plane));
+		plane = world->planes + i;
+		rc = R_RayCrossPlane(plane, ray->origin, ray->dir, &t);
 
-		denom = M_DotVec3f(plane.n, ray_direction);
-		if ((denom < -tolerance) || (tolerance < denom)) {
-			thisdist = (-plane.d - M_DotVec3f(plane.n, ray_origin)) / denom;
+		if (rc) {
+			res = M_CopyVec3f(world->materials[plane->mat].color);
+		}
+	}
 
-			if ((0.0f < thisdist) && (thisdist < hitdist)) {
-				hitdist = thisdist;
-				res = M_CopyVec3f(world->materials[plane.mat].color);
-			}
+	// check for intersections with planes
+	for (i = 0; i < world->spheres_len; i++) {
+		sphere = world->spheres + i;
+		rc = R_RayCrossSphere(sphere, ray->origin, ray->dir, &t);
+
+		if (rc) {
+			res = M_CopyVec3f(world->materials[sphere->mat].color);
 		}
 	}
 
 	return res;
+}
+
+/* R_RayCrossPlane : checks if a ray crosses the given */
+int R_RayCrossPlane(struct plane_t *plane, vec3f origin, vec3f dir, f32 *t)
+{
+	f32 denom;
+	f32 thisdist;
+
+	denom = M_DotVec3f(plane->n, dir);
+	if ((denom < -FLOAT_TOLERANCE) || (FLOAT_TOLERANCE < denom)) {
+		thisdist = (-plane->d - M_DotVec3f(plane->n, origin)) / denom;
+
+		if ((0.0f < thisdist) && (thisdist < *t)) {
+			*t = thisdist;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/* R_RayCrossSphere : checks if a ray crosses the given sphere */
+int R_RayCrossSphere(struct sphere_t *sphere, vec3f origin, vec3f dir, f32 *t)
+{
+	vec3f localorigin;
+	f32 a, b, c;
+	f32 tn, tp, res;
+	f32 denom, rootterm;
+
+	/*
+	 * Uses the quadratic formula to solve for a sphere
+	 * TODO (brian) document the math here.
+	 */
+
+	localorigin = M_SubVec3f(origin, sphere->p);
+
+	a = M_DotVec3f(dir, dir);
+	b = 2.0f * M_DotVec3f(dir, localorigin);
+	c = M_DotVec3f(localorigin, localorigin) - sphere->r * sphere->r;
+
+	denom = 2.0f * a;
+	rootterm = M_Sqrt(b * b - 4.0f * a * c);
+
+	if (rootterm > FLOAT_TOLERANCE) {
+		tp = (-b + rootterm) / denom;
+		tn = (-b - rootterm) / denom;
+
+		printf("t = %f, tp = %f, tn = %f\n", (*t), tp, tn);
+
+		res = tp;
+
+		if (0 < tn && tn < tp) {
+			res = tn;
+		}
+
+		if (res < *t) {
+			*t = res;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /* R_WorldGen : generates or loads the world up */
@@ -210,8 +295,8 @@ struct world_t *R_WorldGen()
 
 	world = calloc(1, sizeof(*world));
 
-	world->materials_len = 3;
-	world->materials_cnt = 3;
+	world->materials_len = 4;
+	world->materials_cnt = 4;
 	world->materials = calloc(world->materials_cnt, sizeof(*world->materials));
 
 	world->planes_len = 1;
@@ -223,13 +308,22 @@ struct world_t *R_WorldGen()
 	world->spheres = calloc(world->spheres_cnt, sizeof(*world->spheres));
 
 	// careful here!!!!
-	world->materials[0].color = M_Vec3f(0, 0, 0);
-	world->materials[1].color = M_Vec3f(1, 1, 1);
-	world->materials[2].color = M_Vec3f(0.9, 0.0, 0.1);
+	world->materials[0].color = M_Vec3f(0, 0, 1);
+	world->materials[1].color = M_Vec3f(1, 0, 0);
+	world->materials[2].color = M_Vec3f(0, 0.6, 0.2);
+	world->materials[2].color = M_Vec3f(0.1, 0.0, 0.5);
 
 	world->planes[0].n = M_Vec3f(0, 0, 1);
 	world->planes[0].d = 0;
 	world->planes[0].mat = 1;
+
+	world->spheres[0].p = M_Vec3f(0, 0, 0);
+	world->spheres[0].r = 1.0f;
+	world->spheres[0].mat = 2;
+
+	world->spheres[1].p = M_Vec3f(-3, 2, 1);
+	world->spheres[1].r = 1.5f;
+	world->spheres[1].mat = 2;
 
 	return world;
 }

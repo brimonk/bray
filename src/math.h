@@ -260,5 +260,8 @@ vec3f M_AddVec3f(vec3f a, vec3f b);
 /* M_DivVec3f : divide vector a by b */
 vec3f M_DivVec3f(vec3f a, vec3f b);
 
+/* M_Sqrt : returns the square root of the input value */
+f32 M_Sqrt(f32 in);
+
 #endif // MATH_H
 
