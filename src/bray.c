@@ -4,10 +4,12 @@
  *
  * Brian's Raytracer
  *
- * NOTE
- * At this time, I'm generally interested in working on a raytracer that
- * really only operates off of triangles. This means that the only primitive
- * I'd have, is a triangle.
+ * TODO
+ * 1. Convert the Raytracer from the Handmade Ray inspired one, to
+ *    operate using triangles only.
+ *    Use Moeller-Trumbore ray-triangle intersection.
+ *
+ * 2. Load Models from Wavefront (obj) Format
  */
 
 #include <stdio.h>
@@ -306,9 +308,9 @@ struct world_t *A_WorldGen()
 
 	world = calloc(1, sizeof(*world));
 
-	A_AddMaterial(world, M_Vec3f(0, 0, 0), M_Vec3f(0, 0, 0)); // sky
-	A_AddMaterial(world, M_Vec3f(1, 0, 0), M_Vec3f(1, 0, 0)); // ground mat
-	A_AddMaterial(world, M_Vec3f(0, 0, 1), M_Vec3f(0, 0, 1)); // sphere blue
+	A_AddMaterial(world, M_Vec3f(1.0, 0.9, 0.9), M_Vec3f(0, 0, 0)); // sky
+	A_AddMaterial(world, M_Vec3f(1.0, 1.0, 1.0), M_Vec3f(0, 0, 0)); // ground mat
+	A_AddMaterial(world, M_Vec3f(0.0, 0.0, 1.0), M_Vec3f(0, 0, 1)); // sphere blue
 
 	A_AddPlane(world, M_Vec3f(0, 0, 1), 0, 1); // ground
 
