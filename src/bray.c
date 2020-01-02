@@ -33,7 +33,8 @@
 #define HEIGHT (768)
 
 struct material_t {
-	vec3f color;
+	vec3f color_emit;
+	vec3f color_reflect;
 };
 
 struct ray_t {
@@ -55,14 +56,14 @@ struct plane_t {
 
 struct world_t {
 	struct material_t *materials;
-	u32 materials_cnt;
-	u32 materials_len;
+	size_t materials_cnt;
+	size_t materials_len;
 	struct plane_t *planes;
-	u32 planes_cnt;
-	u32 planes_len;
+	size_t planes_cnt;
+	size_t planes_len;
 	struct sphere_t *spheres;
-	u32 spheres_cnt;
-	u32 spheres_len;
+	size_t spheres_cnt;
+	size_t spheres_len;
 };
 
 /* R_Main : rendering main function */
@@ -77,11 +78,23 @@ int R_RayCrossPlane(struct plane_t *plane, vec3f origin, vec3f dir, f32 *t);
 /* R_RayCrossSphere : checks if a ray crosses the given sphere */
 int R_RayCrossSphere(struct sphere_t *sphere, vec3f origin, vec3f dir, f32 *t);
 
-/* R_WorldGen : generates or loads the world up */
-struct world_t *R_WorldGen();
+/* A_WorldGen : generates or loads the world up */
+struct world_t *A_WorldGen();
 
-/* R_WorldFree : frees the world structure */
-void R_WorldFree(struct world_t *world);
+/* A_WorldFree : frees the world structure */
+void A_WorldFree(struct world_t *world);
+
+/* A_AddMaterial : adds a sphere into the world */
+void A_AddMaterial(struct world_t *world, vec3f emit, vec3f reflect);
+
+/* A_AddPlane : adds a sphere into the world */
+void A_AddPlane(struct world_t *world, vec3f pos, f32 d, u32 mat);
+
+/* A_AddSphere : adds a sphere into the world */
+void A_AddSphere(struct world_t *world, vec3f pos, f32 r, u32 mat);
+
+/* A_ArrayRealloc : reallocates an array if needed */
+void A_ArrayRealloc(void *p, size_t *cnt, size_t *len, size_t elem);
 
 int main(int argc, char **argv)
 {
@@ -141,7 +154,7 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 	vec3f color;
 
 	// construct the world first
-	world = R_WorldGen();
+	world = A_WorldGen();
 
 	camera_p = M_Vec3f(0, -10, 1);
 	camera_z = M_NormVec3f(camera_p);
@@ -184,7 +197,7 @@ int R_Main(vec3f *framebuffer, s32 w, s32 h)
 		}
 	}
 
-	R_WorldFree(world);
+	A_WorldFree(world);
 
 	return 0;
 }
@@ -201,7 +214,7 @@ vec3f R_RayCast(struct world_t *world, struct ray_t *ray)
 
 	t = FLT_MAX;
 
-	res = M_CopyVec3f(world->materials[0].color);
+	res = M_CopyVec3f(world->materials[0].color_emit);
 
 	// check for intersections with planes
 	for (i = 0; i < world->planes_len; i++) {
@@ -209,7 +222,7 @@ vec3f R_RayCast(struct world_t *world, struct ray_t *ray)
 		rc = R_RayCrossPlane(plane, ray->origin, ray->dir, &t);
 
 		if (rc) {
-			res = M_CopyVec3f(world->materials[plane->mat].color);
+			res = M_CopyVec3f(world->materials[plane->mat].color_emit);
 		}
 	}
 
@@ -219,7 +232,7 @@ vec3f R_RayCast(struct world_t *world, struct ray_t *ray)
 		rc = R_RayCrossSphere(sphere, ray->origin, ray->dir, &t);
 
 		if (rc) {
-			res = M_CopyVec3f(world->materials[sphere->mat].color);
+			res = M_CopyVec3f(world->materials[sphere->mat].color_emit);
 		}
 	}
 
@@ -271,8 +284,6 @@ int R_RayCrossSphere(struct sphere_t *sphere, vec3f origin, vec3f dir, f32 *t)
 		tp = (-b + rootterm) / denom;
 		tn = (-b - rootterm) / denom;
 
-		printf("t = %f, tp = %f, tn = %f\n", (*t), tp, tn);
-
 		res = tp;
 
 		if (0 < tn && tn < tp) {
@@ -288,48 +299,26 @@ int R_RayCrossSphere(struct sphere_t *sphere, vec3f origin, vec3f dir, f32 *t)
 	return false;
 }
 
-/* R_WorldGen : generates or loads the world up */
-struct world_t *R_WorldGen()
+/* A_WorldGen : generates or loads the world up */
+struct world_t *A_WorldGen()
 {
 	struct world_t *world;
 
 	world = calloc(1, sizeof(*world));
 
-	world->materials_len = 4;
-	world->materials_cnt = 4;
-	world->materials = calloc(world->materials_cnt, sizeof(*world->materials));
+	A_AddMaterial(world, M_Vec3f(0, 0, 0), M_Vec3f(0, 0, 0)); // sky
+	A_AddMaterial(world, M_Vec3f(1, 0, 0), M_Vec3f(1, 0, 0)); // ground mat
+	A_AddMaterial(world, M_Vec3f(0, 0, 1), M_Vec3f(0, 0, 1)); // sphere blue
 
-	world->planes_len = 1;
-	world->planes_cnt = 1;
-	world->planes = calloc(world->planes_cnt, sizeof(*world->planes));
+	A_AddPlane(world, M_Vec3f(0, 0, 1), 0, 1); // ground
 
-	world->spheres_len = 3;
-	world->spheres_cnt = 3;
-	world->spheres = calloc(world->spheres_cnt, sizeof(*world->spheres));
-
-	// careful here!!!!
-	world->materials[0].color = M_Vec3f(0, 0, 1);
-	world->materials[1].color = M_Vec3f(1, 0, 0);
-	world->materials[2].color = M_Vec3f(0, 0.6, 0.2);
-	world->materials[2].color = M_Vec3f(0.1, 0.0, 0.5);
-
-	world->planes[0].n = M_Vec3f(0, 0, 1);
-	world->planes[0].d = 0;
-	world->planes[0].mat = 1;
-
-	world->spheres[0].p = M_Vec3f(0, 0, 0);
-	world->spheres[0].r = 1.0f;
-	world->spheres[0].mat = 2;
-
-	world->spheres[1].p = M_Vec3f(-3, 2, 1);
-	world->spheres[1].r = 1.5f;
-	world->spheres[1].mat = 2;
+	A_AddSphere(world, M_Vec3f(0, 0, 0), 2, 2); // sphere
 
 	return world;
 }
 
-/* R_WorldFree : frees the world structure */
-void R_WorldFree(struct world_t *world)
+/* A_WorldFree : frees the world structure */
+void A_WorldFree(struct world_t *world)
 {
 	if (world) {
 		if (world->planes) {
@@ -342,6 +331,81 @@ void R_WorldFree(struct world_t *world)
 			free(world->materials);
 		}
 		free(world);
+	}
+}
+
+/* A_AddMaterial : adds a sphere into the world */
+void A_AddMaterial(struct world_t *world, vec3f emit, vec3f reflect)
+{
+	size_t t;
+
+	if (!world) { // ERROR
+		return;
+	}
+
+	A_ArrayRealloc(&world->materials, &world->materials_cnt, &world->materials_len, sizeof(struct material_t));
+
+	t = world->materials_len++;
+
+	world->materials[t].color_emit = M_CopyVec3f(emit);
+	world->materials[t].color_reflect = M_CopyVec3f(reflect);
+}
+
+/* A_AddPlane : adds a sphere into the world */
+void A_AddPlane(struct world_t *world, vec3f pos, f32 d, u32 mat)
+{
+	size_t t;
+
+	if (!world) { // ERROR
+		return;
+	}
+
+	A_ArrayRealloc(&world->planes, &world->planes_cnt, &world->planes_len, sizeof(struct plane_t));
+
+	t = world->planes_len++;
+
+	world->planes[t].n = M_CopyVec3f(pos);
+	world->planes[t].d = d;
+	world->planes[t].mat = mat;
+}
+
+/* A_AddSphere : adds a sphere into the world */
+void A_AddSphere(struct world_t *world, vec3f pos, f32 r, u32 mat)
+{
+	size_t t;
+
+	if (!world) { // ERROR
+		return;
+	}
+
+	A_ArrayRealloc(&world->spheres, &world->spheres_cnt, &world->spheres_len, sizeof(struct sphere_t));
+
+	t = world->spheres_len++;
+
+	world->spheres[t].p = M_CopyVec3f(pos);
+	world->spheres[t].r = r;
+	world->spheres[t].mat = mat;
+}
+
+/* A_ArrayRealloc : reallocates an array if needed */
+void A_ArrayRealloc(void *p, size_t *cnt, size_t *len, size_t elem)
+{
+	// NOTE (brian)
+	// 1. this doesn't handle realloc failures
+	// 2. we ASSUME (so the compiler will can it) that you PASS IN a
+	//    void **-like thing. You have been warned.
+
+	void **v;
+
+	v = (void **)p;
+
+	if (*cnt == *len) {
+		if (*cnt) {
+			*cnt *= 2;
+		} else {
+			*cnt = BUFSMALL;
+		}
+		*v = realloc(*v, elem * *cnt);
 	}
 }
 
