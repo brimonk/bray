@@ -7,7 +7,8 @@
 #define BUFSMALL  (256)
 #define BUFLARGE  (4096)
 
-#define IDX2D(x,y,ylen)   ((x) + (y) * (ylen))
+#define IDX2D(x,y,ylen)          ((x) + (y) * (ylen))
+#define IDX3D(x,y,z,ylen,zlen)   ((x) + (y) * (ylen) + (z) * (ylen) * (zlen))
 
 #define SWAP(x, y) do { typeof(x) SWAP = x; x = y; y = SWAP; } while (0)
 	
@@ -47,6 +48,9 @@ typedef int                s32;
 typedef long long          s64;
 typedef float              f32;
 typedef double             f64;
+
+/* C_ArrayRealloc : realloc an array as needed */
+void C_ArrayRealloc(void *p, size_t *cnt, size_t *len, size_t elem);
 
 #endif
 
